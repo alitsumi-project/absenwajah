@@ -183,8 +183,7 @@
       <div class="chips">
         <span class="chip" id="chFace">1. Wajah</span>
         <span class="chip" id="chBlink">2. Kedip</span>
-        <span class="chip" id="chTurn">3. Menoleh</span>
-        <span class="chip" id="chGps">4. Lokasi</span>
+        <span class="chip" id="chGps">3. Lokasi</span>
       </div>
     </div>
   </div>
@@ -354,7 +353,7 @@ const DEVELOPER = {
   email:    '',
   catatan:  'Aplikasi absensi wajah ini dirancang dan dibuat khusus untuk Gili Hai Cruise.'
 };
-const APP_VERSION = '3.0 · November 2026';
+const APP_VERSION = '3.2 · November 2026';
 
 const TZ = 'Asia/Makassar';
 const HARI = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
@@ -430,7 +429,7 @@ function showDeveloper(){
       <div><b>Absensi Wajah ${esc(INFO?.company_name||'Gili Hai Cruise')}</b><div class="muted" style="font-size:13px">Versi ${APP_VERSION}</div></div>
     </div>
     <ul class="muted" style="font-size:13px;line-height:1.7;padding-left:18px">
-      <li>Pengenalan wajah + cek wajah hidup (kedip &amp; menoleh)</li>
+      <li>Pengenalan wajah + cek wajah hidup (kedip mata)</li>
       <li>Kamera langsung di aplikasi — foto tidak bisa di-upload</li>
       <li>Validasi lokasi kantor, jam server WITA, perangkat terdaftar</li>
       <li>Laporan harian &amp; rekap bulanan (Excel / PDF)</li>
@@ -620,7 +619,7 @@ function camMsg(big, sub){ $('cBig').textContent = big; $('cSub').textContent = 
 async function startAbsen(){
   clearTimeout(resetTimer); $('kResult').classList.add('hidden');
   $('camView').classList.remove('hidden');
-  ['chFace','chBlink','chTurn','chGps'].forEach(i=>chip(i,''));
+  ['chFace','chBlink','chGps'].forEach(i=>chip(i,''));
   camMsg('Menyiapkan kamera…');
   try{ await loadModels(); }catch(e){ return endAbsen('bad','Sistem pengenal wajah gagal dimuat','Periksa koneksi internet lalu coba lagi. ('+(e.message||e)+')'); }
   try{ cStream = await openCamera($('cVideo')); }catch(e){ return endAbsen('bad','Kamera tidak bisa dibuka', cameraHelp(e)); }
@@ -636,7 +635,7 @@ async function livenessLoop(){
   let phase = 'face', frontal = 0, base = 0, openF = 0, closed = false, lostAt = 0, firstDesc = null, finals = [];
   const started = Date.now();
   const reset = (why) => { phase='face'; frontal=0; base=0; openF=0; closed=false; firstDesc=null; finals=[];
-    ['chFace','chBlink','chTurn'].forEach(i=>chip(i,'')); if (why) camMsg(why, 'Mulai lagi dari awal'); };
+    ['chFace','chBlink'].forEach(i=>chip(i,'')); if (why) camMsg(why, 'Mulai lagi dari awal'); };
 
   while (cRun){
     if (Date.now() - started > 60000) return endAbsen('bad','Waktu habis','Langkah cek wajah tidak selesai. Coba lagi dengan cahaya yang cukup.');
@@ -667,23 +666,17 @@ async function livenessLoop(){
 
     if (phase === 'face'){
       chip('chFace','now'); camMsg('Lihat lurus ke kamera');
-      if (Math.abs(yaw) < 0.12){ frontal++; if (f.descriptor && !firstDesc) firstDesc = Array.from(f.descriptor); }
+      if (Math.abs(yaw) < 0.2){ frontal++; if (f.descriptor && !firstDesc) firstDesc = Array.from(f.descriptor); }
       else frontal = 0;
       if (frontal >= 3 && firstDesc){ phase = 'blink'; chip('chFace','ok'); }
     } else if (phase === 'blink'){
       chip('chBlink','now'); camMsg('KEDIPKAN mata', 'Pejamkan sebentar lalu buka');
       if (e > base*0.85) openF++;
       if (openF >= 3 && e < base*0.68) closed = true;
-      else if (closed && e > base*0.85){ phase = 'turn'; chip('chBlink','ok'); }
-    } else if (phase === 'turn'){
-      chip('chTurn','now'); camMsg('TOLEHKAN kepala ke samping', 'Kiri atau kanan, lalu kembali lurus');
-      if (Math.abs(yaw) > 0.25){ phase = 'back'; }
-    } else if (phase === 'back'){
-      camMsg('Kembali lihat lurus ke kamera');
-      if (Math.abs(yaw) < 0.1 && e > base*0.8){ phase = 'final'; chip('chTurn','ok'); }
+      else if (closed && e > base*0.85){ phase = 'final'; chip('chBlink','ok'); }
     } else if (phase === 'final'){
       camMsg('Tahan sebentar…', 'Mengambil foto');
-      if (f.descriptor && Math.abs(yaw) < 0.12 && e > base*0.8 && f.detection.score > 0.6){
+      if (f.descriptor && Math.abs(yaw) < 0.2 && e > base*0.75 && f.detection.score > 0.6){
         finals.push({ desc: Array.from(f.descriptor), box, score: f.detection.score });
         if (finals.length >= 2){
           const best = finals.sort((a,b)=>b.score-a.score)[0];
